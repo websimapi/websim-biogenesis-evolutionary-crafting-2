@@ -1,0 +1,121 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BioGenesis: Evolutionary Crafting</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <!-- New Toggle Button for Notable Similar Projects -->
+      <button id="toggle-similar-projects-btn">Notable Similar Projects</button>
+      <!-- Dropdown for Notable Similar Projects -->
+      <div id="similar-projects-dropdown">
+        <ul>
+          <li><a href="https://websim.ai/@y_at/infinite-crafting-table" target="_blank">Infinite Crafting Table</a></li>
+        </ul>
+      </div>
+      <h1>BioGenesis: Evolutionary Crafting</h1>
+      <p>Forge life by combining the fundamental building blocks of nature.</p>
+      <div id="currency-display">
+        Currency: <span id="currency-counter">0</span>
+      </div>
+    </header>
+    <main>
+      <div class="container">
+        <!-- Available Components Panel -->
+        <div class="available-container">
+          <!-- New RESORT button -->
+          <button id="resort-btn">RESORT</button>
+          <section id="elements-panel">
+            <h2>Elements</h2>
+            <div id="elements-list"></div>
+          </section>
+          <section id="biological-panel">
+            <h2>Biological Components</h2>
+            <div id="biological-list"></div>
+          </section>
+          <section id="energy-panel">
+            <h2>Energy</h2>
+            <div id="energy-list"></div>
+          </section>
+          <section id="mythical-panel">
+            <h2>Mythical Creatures</h2>
+            <div id="mythical-list"></div>
+          </section>
+          <section id="specials-panel">
+            <h2>Special Discoveries</h2>
+            <div id="specials-list"></div>
+          </section>
+          <section id="essence-panel">
+            <h2>Essence</h2>
+            <div id="essence-list"></div>
+          </section>
+          <section id="people-panel">
+            <h2>People</h2>
+            <div id="people-list"></div>
+          </section>
+          <section id="places-panel">
+            <h2>Places</h2>
+            <div id="places-list"></div>
+          </section>
+          <section id="nexus-panel">
+            <h2>Nexus</h2>
+            <div id="nexus-list"></div>
+          </section>
+        </div>
+
+        <!-- Crafting Area -->
+        <section id="crafting-area">
+          <div id="combination-section">
+            <h2>Your Combination</h2>
+            <div id="combination-container"></div>
+            <button id="combine-btn" disabled>Combine!</button>
+          </div>
+          <div id="result-section">
+            <h2>Global Discovery Log</h2>
+            <button id="toggle-catalog-btn">Toggle Global Catalog</button>
+            <!-- NEW: Catalog Sort Controls -->
+            <div class="catalog-sort-container">
+              <label for="catalog-sort">Sort by:</label>
+              <select id="catalog-sort">
+                <option value="newest">Newest</option>
+                <option value="alphabetical">Alphabetical</option>
+                <option value="rarity">Rarity</option>
+                <option value="category">Category</option>
+              </select>
+              <button id="apply-sort-btn">Apply Sort</button>
+            </div>
+            <!-- Global catalog will be populated dynamically using grid layout -->
+            <div id="global-catalog"></div>
+          </div>
+        </section>
+
+        <!-- Recipe Store Area -->
+        <section id="store-area">
+          <h2>Recipe Store</h2>
+          <!-- NEW: Store Search Input -->
+          <input type="text" id="store-search" placeholder="Search recipes..." />
+          <button id="toggle-store-btn">Toggle Recipe Store</button>
+          <div id="store-section" style="display:none;"></div>
+        </section>
+      </div>
+    </main>
+    
+    <!-- Modal for displaying creature details -->
+    <div id="creature-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn">&times;</span>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+    
+    <!-- New overlay for newly created output -->
+    <div id="new-output-overlay">
+      <div class="overlay-content" id="new-output-content"></div>
+    </div>
+    
+    <script type="module" src="main.js"></script>
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
