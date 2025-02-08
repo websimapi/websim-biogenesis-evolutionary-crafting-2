@@ -374,15 +374,14 @@ export function displayCreature(creature) {
 
 // Helper function to generate consistent card content
 function getCreatureCardContent(creature) {
-  const displayImageStyle = creature.generatedImage ? 
-    `background-image: url('${creature.generatedImage}'); background-size: contain; background-position: center; background-repeat: no-repeat;` :
-    '';
+  // For generated images, use div with background-image
+  const imageContent = creature.generatedImage ? 
+    `<div class="generated-image" style="background-image: url('${creature.generatedImage}'); background-size: contain; background-position: center; background-repeat: no-repeat; width: 100%; height: 100%;"></div>` :
+    creature.svg;
 
   return `
     <div class="image-container">
-      ${creature.generatedImage ? 
-        `<div class="generated-image" style="${displayImageStyle}"></div>` : 
-        creature.svg}
+      ${imageContent}
       ${creature.firstTime ? '<div class="new-tag">New!</div>' : ''}
     </div>
     <h3>${creature.name}</h3>
@@ -467,41 +466,23 @@ export async function handleUseGeneratedImage(creature) {
   outputContainer.innerHTML = "<p>Generating image...</p>";
   
   try {
-    // Generate and upload image to get websim URL
-    const websimUrl = await generateOutputImage(creature);
-    if (!websimUrl) {
+    // First check for cached image
+    if (creature.generatedImage) {
+      showGeneratedImage(outputContainer, creature, creature.generatedImage);
+      return;
+    }
+
+    // If no cached image, generate new one
+    const imageUrl = await generateOutputImage(creature);
+    if (!imageUrl) {
       throw new Error("Failed to generate image");
     }
 
-    // Store the websim URL in the creature object
-    creature.generatedImage = websimUrl;
-
-    // Update the database entry with the websim URL
-    const room = getRoom();
-    if (room) {
-      try {
-        const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
-        if (existing && existing.length > 0) {
-          await room.collection("recipe").update(existing[0].id, {
-            generatedImage: websimUrl
-          });
-        } else {
-          // Create new recipe entry if it doesn't exist
-          await room.collection("recipe").create({
-            ...creature,
-            generatedImage: websimUrl
-          });
-        }
-      } catch (error) {
-        console.error("Error updating recipe with image URL:", error);
-      }
-    }
-
-    // Show the image using background-image
-    outputContainer.innerHTML = `
-      <div class="generated-image" style="background-image: url('${websimUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat; width: 100%; height: 300px;"></div>
-    `;
-
+    // Cache the successful image generation
+    creature.generatedImage = imageUrl;
+    showGeneratedImage(outputContainer, creature, imageUrl);
+    
+    // Save to persistent storage
     saveGameData();
     
   } catch (error) {
@@ -517,6 +498,7 @@ export async function handleUseGeneratedImage(creature) {
 
 // Helper function to show generated image and controls
 function showGeneratedImage(container, creature, imageUrl) {
+  // Create unique ID for the temporary img element
   const uniqueId = `gen-img-${Date.now()}`;
   
   container.innerHTML = `
@@ -539,12 +521,11 @@ function showGeneratedImage(container, creature, imageUrl) {
       try {
         const imgSrc = genImg.src;
         if (imgSrc && imgSrc !== imageUrl) {
+          // Only upload if the source has changed (meaning generation completed)
           const response = await fetch(imgSrc);
           const blob = await response.blob();
-          // Use websim upload to get persistent URL
-          const uploadedUrl = await websim.upload(blob);
-          // Store the websim-hosted URL
-          await handleSavePreviewImage(creature, uploadedUrl);
+          const websimUrl = await websim.upload(blob);
+          await handleSavePreviewImage(creature, websimUrl);
           alert("Preview image saved globally!");
           const overlay = document.getElementById("new-output-overlay");
           if (overlay) overlay.style.display = "none";
@@ -556,7 +537,20 @@ function showGeneratedImage(container, creature, imageUrl) {
     });
   }
 
-  // Rest of the function remains the same...
+  // Add regenerate button handler
+  if (regenBtn) {
+    regenBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      container.innerHTML = "<p>Regenerating image...</p>";
+      const newImageUrl = await generateOutputImage(creature);
+      if (newImageUrl) {
+        showGeneratedImage(container, creature, newImageUrl);
+      } else {
+        container.innerHTML = creature.svg;
+        alert("Failed to generate new image.");
+      }
+    });
+  }
 }
 
 // NEW: Function to save the generated preview image globally.

@@ -448,7 +448,17 @@ export async function generateOutputImage(creature) {
 Name: ${creature.name}
 Description: ${creature.description}
 Category: ${creature.category}
-Rarity: ${creature.rarity}`;
+Rarity: ${creature.rarity}
+
+Additional context: The image should be realistic, detailed, and representative of the creature's described properties.
+
+interface Response {
+  imageUrl: string;
+}
+
+{
+  "imageUrl": "https://images.websim.ai/v1/generated/123456789"
+}`;
 
     const response = await fetch("/api/ai_completion", {
       method: "POST",
@@ -473,43 +483,14 @@ Rarity: ${creature.rarity}`;
 
     const data = await response.json();
     
-    // Create a temporary image element with unique ID to capture the generated image
-    const tempImgId = `temp-img-${Date.now()}`;
-    const tempImg = document.createElement('img');
-    tempImg.id = tempImgId;
-    tempImg.style.display = 'none';
-    document.body.appendChild(tempImg);
+    if (!data || !data.imageUrl) {
+      throw new Error("Invalid image generation response");
+    }
 
-    // Set the initial prompt/text as src
-    tempImg.src = data.imageUrl;
-
-    // Wait for image to load and src to change from initial prompt
-    await new Promise((resolve, reject) => {
-      tempImg.onload = async () => {
-        try {
-          // Get the final image URL after it's been generated
-          const finalImageUrl = tempImg.src;
-          
-          // Upload to websim storage to get permanent URL
-          const response = await fetch(finalImageUrl);
-          const blob = await response.blob();
-          const websimUrl = await websim.upload(blob);
-
-          // Clean up temporary image element
-          tempImg.remove();
-          
-          resolve(websimUrl);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      tempImg.onerror = reject;
-    });
-
-    // Return the websim-hosted URL
     return data.imageUrl;
   } catch (error) {
     console.error("Image generation error:", error);
+    // Return null to indicate failure, allowing graceful fallback
     return null;
   }
 }
@@ -624,45 +605,58 @@ function addImageControls(container, creature) {
 
 // Update handleSavePreviewImage function
 export async function handleSavePreviewImage(creature, newImageUrl) {
-  // Update local copy
-  creature.generatedImage = newImageUrl;
-  
-  // Update global recipes cache
-  if (globalRecipes[creature.id]) {
-    globalRecipes[creature.id].generatedImage = newImageUrl;
-    globalRecipes[creature.id].lastGeneratedAt = new Date().toISOString();
-  }
-  
-  // Update the database entry
-  const room = getRoom();
-  if (room) {
-    try {
-      const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
-      if (existing && existing.length > 0) {
-        // Update existing recipe with new image URL
-        await room.collection("recipe").update(existing[0].id, {
-          generatedImage: newImageUrl,
-          lastGeneratedAt: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error("Error updating recipe with new image URL:", error);
+  try {
+    // Upload the image to websim storage if it's not already a websim URL
+    let websimUrl = newImageUrl;
+    if (!newImageUrl.includes('websim.ai')) {
+      const response = await fetch(newImageUrl);
+      const blob = await response.blob();
+      websimUrl = await websim.upload(blob);
     }
 
-    // Broadcast the update to other users
-    room.send({
-      type: "updatePreviewImage",
-      creatureId: creature.id,
-      newImageUrl: newImageUrl,
-      timestamp: new Date().toISOString()
-    });
+    // Update local copy
+    creature.generatedImage = websimUrl;
+    
+    // Update global recipes cache
+    if (globalRecipes[creature.id]) {
+      globalRecipes[creature.id].generatedImage = websimUrl;
+      globalRecipes[creature.id].lastGeneratedAt = new Date().toISOString();
+    }
+    
+    // Update the database entry
+    const room = getRoom();
+    if (room) {
+      try {
+        const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
+        if (existing && existing.length > 0) {
+          // Update existing recipe with websim image URL
+          await room.collection("recipe").update(existing[0].id, {
+            generatedImage: websimUrl,
+            lastGeneratedAt: new Date().toISOString()
+          });
+        } else {
+          // Create new recipe entry with image URL if it doesn't exist
+          await room.collection("recipe").create({
+            ...creature,
+            generatedImage: websimUrl,
+            lastGeneratedAt: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error("Error updating recipe with image URL:", error);
+      }
+    }
+    
+    // Re-render the catalog with the new image
+    renderGlobalCatalog();
+    
+    // Save to persistent storage
+    saveGameData();
+
+  } catch (error) {
+    console.error("Error saving preview image:", error);
+    throw error;
   }
-  
-  // Re-render the catalog with the new image
-  renderGlobalCatalog();
-  
-  // Save to persistent storage
-  saveGameData();
 }
 
 // Expose functions globally for use by render event listeners.
