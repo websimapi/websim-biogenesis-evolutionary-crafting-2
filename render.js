@@ -467,23 +467,41 @@ export async function handleUseGeneratedImage(creature) {
   outputContainer.innerHTML = "<p>Generating image...</p>";
   
   try {
-    // First check for cached image
-    if (creature.generatedImage) {
-      showGeneratedImage(outputContainer, creature, creature.generatedImage);
-      return;
-    }
-
-    // If no cached image, generate new one
-    const imageUrl = await generateOutputImage(creature);
-    if (!imageUrl) {
+    // Generate and upload image to get websim URL
+    const websimUrl = await generateOutputImage(creature);
+    if (!websimUrl) {
       throw new Error("Failed to generate image");
     }
 
-    // Cache the successful image generation
-    creature.generatedImage = imageUrl;
-    showGeneratedImage(outputContainer, creature, imageUrl);
-    
-    // Save to persistent storage
+    // Store the websim URL in the creature object
+    creature.generatedImage = websimUrl;
+
+    // Update the database entry with the websim URL
+    const room = getRoom();
+    if (room) {
+      try {
+        const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
+        if (existing && existing.length > 0) {
+          await room.collection("recipe").update(existing[0].id, {
+            generatedImage: websimUrl
+          });
+        } else {
+          // Create new recipe entry if it doesn't exist
+          await room.collection("recipe").create({
+            ...creature,
+            generatedImage: websimUrl
+          });
+        }
+      } catch (error) {
+        console.error("Error updating recipe with image URL:", error);
+      }
+    }
+
+    // Show the image using background-image
+    outputContainer.innerHTML = `
+      <div class="generated-image" style="background-image: url('${websimUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat; width: 100%; height: 300px;"></div>
+    `;
+
     saveGameData();
     
   } catch (error) {

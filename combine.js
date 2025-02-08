@@ -448,17 +448,7 @@ export async function generateOutputImage(creature) {
 Name: ${creature.name}
 Description: ${creature.description}
 Category: ${creature.category}
-Rarity: ${creature.rarity}
-
-Additional context: The image should be realistic, detailed, and representative of the creature's described properties.
-
-interface Response {
-  imageUrl: string;
-}
-
-{
-  "imageUrl": "https://images.websim.ai/v1/generated/123456789"
-}`;
+Rarity: ${creature.rarity}`;
 
     const response = await fetch("/api/ai_completion", {
       method: "POST",
@@ -483,14 +473,43 @@ interface Response {
 
     const data = await response.json();
     
-    if (!data || !data.imageUrl) {
-      throw new Error("Invalid image generation response");
-    }
+    // Create a temporary image element with unique ID to capture the generated image
+    const tempImgId = `temp-img-${Date.now()}`;
+    const tempImg = document.createElement('img');
+    tempImg.id = tempImgId;
+    tempImg.style.display = 'none';
+    document.body.appendChild(tempImg);
 
+    // Set the initial prompt/text as src
+    tempImg.src = data.imageUrl;
+
+    // Wait for image to load and src to change from initial prompt
+    await new Promise((resolve, reject) => {
+      tempImg.onload = async () => {
+        try {
+          // Get the final image URL after it's been generated
+          const finalImageUrl = tempImg.src;
+          
+          // Upload to websim storage to get permanent URL
+          const response = await fetch(finalImageUrl);
+          const blob = await response.blob();
+          const websimUrl = await websim.upload(blob);
+
+          // Clean up temporary image element
+          tempImg.remove();
+          
+          resolve(websimUrl);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      tempImg.onerror = reject;
+    });
+
+    // Return the websim-hosted URL
     return data.imageUrl;
   } catch (error) {
     console.error("Image generation error:", error);
-    // Return null to indicate failure, allowing graceful fallback
     return null;
   }
 }
