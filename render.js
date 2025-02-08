@@ -555,32 +555,60 @@ function showGeneratedImage(container, creature, imageUrl) {
 
 // NEW: Function to save the generated preview image globally.
 export async function handleSavePreviewImage(creature, newImageUrl) {
-  // Update local copy
-  creature.generatedImage = newImageUrl;
-  
-  // Update global recipes cache
-  if (globalRecipes[creature.id]) {
-    globalRecipes[creature.id].generatedImage = newImageUrl;
-    // Don't replace svg, just store the generated image URL
-    globalRecipes[creature.id].lastGeneratedAt = new Date().toISOString();
+  try {
+    // Upload to websim storage if needed
+    let websimUrl = newImageUrl;
+    if (!newImageUrl.includes('websim.ai')) {
+      const response = await fetch(newImageUrl);
+      const blob = await response.blob();
+      websimUrl = await websim.upload(blob);
+    }
+
+    // Update local copy
+    creature.generatedImage = websimUrl;
+    
+    // Update global recipes cache
+    if (globalRecipes[creature.id]) {
+      globalRecipes[creature.id].generatedImage = websimUrl;
+      globalRecipes[creature.id].lastGeneratedAt = new Date().toISOString();
+    }
+    
+    // Update the database entry
+    const room = getRoom();
+    if (room) {
+      try {
+        const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
+        if (existing && existing.length > 0) {
+          // Update existing recipe with websim image URL and all creature data
+          await room.collection("recipe").update(existing[0].id, {
+            ...creature,
+            generatedImage: websimUrl,
+            lastGeneratedAt: new Date().toISOString()
+          });
+        } else {
+          // Create new recipe entry with all data including image URL
+          await room.collection("recipe").create({
+            ...creature,
+            generatedImage: websimUrl,
+            lastGeneratedAt: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error("Error updating recipe with image URL:", error);
+        throw error;
+      }
+    }
+    
+    // Re-render the catalog with the new image
+    renderGlobalCatalog();
+    
+    // Save to persistent storage
+    saveGameData();
+
+  } catch (error) {
+    console.error("Error saving preview image:", error);
+    throw error;
   }
-  
-  // Broadcast the update to other users
-  const room = getRoom();
-  if (room) {
-    room.send({
-      type: "updatePreviewImage",
-      creatureId: creature.id,
-      newImageUrl: newImageUrl,
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  // Re-render the catalog with the new image
-  renderGlobalCatalog();
-  
-  // Save to persistent storage
-  saveGameData();
 }
 
 // NEW: Render the Recipe Store with search functionality.

@@ -203,6 +203,7 @@ export async function addDiscovery(creature) {
   
   if (isFirstTime) {
     creature.firstTime = true;
+
     // Ensure generatedImage is a websim-hosted URL if it exists
     if (creature.generatedImage && !creature.generatedImage.includes('websim.ai')) {
       try {
@@ -220,13 +221,18 @@ export async function addDiscovery(creature) {
     try {
       const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
       if (!(existing && existing.length > 0)) {
-        await room.collection("recipe").create(creature);
+        // Save complete creature data including any generated image URL
+        await room.collection("recipe").create({
+          ...creature,
+          generatedImage: creature.generatedImage,
+          lastGeneratedAt: creature.generatedImage ? new Date().toISOString() : null
+        });
       }
     } catch (error) {
       console.error("Error saving global discovery:", error);
     }
   }
-  
+
   // Allow duplicates: Add to user's ownedRecipes if discovered by this user
   const alreadyOwned = ownedRecipes.find(r => r.id === creature.id && r.discovered_by && r.discovered_by.username === currentUser);
   if (!alreadyOwned && creature.discovered_by && creature.discovered_by.username === currentUser) {
