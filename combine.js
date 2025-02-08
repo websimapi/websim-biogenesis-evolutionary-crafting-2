@@ -193,23 +193,31 @@ export async function addDiscovery(creature) {
   if (!creature.id) {
     creature.id = creature.name.toLowerCase().replace(/ /g, "-");
   }
-  if (!creature.discovered_at) {
-    creature.discovered_at = new Date().toISOString();
-  }
+  
   const room = getRoom();
   const currentUser = room.party.client.username;
   
+  // Check if this is the first global discovery
   const isFirstTime = !globalRecipes[creature.id];
-
+  
   if (isFirstTime) {
     creature.firstTime = true;
+    // Ensure generatedImage is a websim-hosted URL if it exists
+    if (creature.generatedImage && !creature.generatedImage.includes('websim.ai')) {
+      try {
+        const response = await fetch(creature.generatedImage);
+        const blob = await response.blob();
+        creature.generatedImage = await websim.upload(blob);
+      } catch (error) {
+        console.error("Error uploading image to websim:", error);
+        creature.generatedImage = null;
+      }
+    }
+    
     globalRecipes[creature.id] = creature;
-    room.send({
-      type: "newDiscovery",
-      creature: creature
-    });
+    
     try {
-      let existing = room.collection("recipe").filter({ id: creature.id }).getList();
+      const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
       if (!(existing && existing.length > 0)) {
         await room.collection("recipe").create(creature);
       }

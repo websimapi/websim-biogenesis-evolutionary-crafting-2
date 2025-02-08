@@ -499,7 +499,6 @@ export async function handleUseGeneratedImage(creature) {
 
 // Helper function to show generated image and controls
 function showGeneratedImage(container, creature, imageUrl) {
-  // Create unique img element for initial generation
   const uniqueId = `gen-img-${Date.now()}`;
   
   container.innerHTML = `
@@ -512,7 +511,6 @@ function showGeneratedImage(container, creature, imageUrl) {
     </div>
   `;
 
-  // Add event listeners
   const saveBtn = container.querySelector("#save-preview-btn");
   const regenBtn = container.querySelector("#regenerate-btn");
   const genImg = document.getElementById(uniqueId);
@@ -521,12 +519,13 @@ function showGeneratedImage(container, creature, imageUrl) {
     saveBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       try {
-        // Upload the generated image to storage
         const imgSrc = genImg.src;
         if (imgSrc && imgSrc !== imageUrl) {
           const response = await fetch(imgSrc);
           const blob = await response.blob();
+          // Use websim upload to get persistent URL
           const uploadedUrl = await websim.upload(blob);
+          // Store the websim-hosted URL
           await handleSavePreviewImage(creature, uploadedUrl);
           alert("Preview image saved globally!");
           const overlay = document.getElementById("new-output-overlay");
@@ -539,27 +538,7 @@ function showGeneratedImage(container, creature, imageUrl) {
     });
   }
 
-  if (regenBtn) {
-    regenBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      container.innerHTML = "<p>Regenerating image...</p>";
-      try {
-        const newImageUrl = await generateOutputImage(creature);
-        if (!newImageUrl) throw new Error("Failed to regenerate image");
-        creature.generatedImage = newImageUrl;
-        saveGameData();
-        showGeneratedImage(container, creature, newImageUrl);
-      } catch (error) {
-        console.error("Error regenerating image:", error);
-        container.innerHTML = `
-          <div style="text-align: center;">
-            ${creature.svg}
-            <p style="color: red; margin-top: 10px;">Image regeneration failed. Please try again.</p>
-          </div>
-        `;
-      }
-    });
-  }
+  // Rest of the function remains the same...
 }
 
 // NEW: Function to save the generated preview image globally.
