@@ -35,7 +35,8 @@ import {
   renderNexusPanel,
   updateCombineButtonState,
   showNewOutputOverlay,
-  renderStore
+  renderStore,
+  renderGlobalCatalog
 } from "./render.js";
 
 // Add a component to the current combination (max 4 allowed)
@@ -497,26 +498,63 @@ interface Response {
 // Handle image generation caching
 export async function handleUseGeneratedImage(creature) {
   const outputContainer = document.getElementById("output-image-container");
-  outputContainer.innerHTML = "";
+  if (!outputContainer) return;
+
+  outputContainer.innerHTML = "<p>Generating image...</p>";
   
-  // Check if the creature already has a cached generated image
-  if (creature.generatedImage) {
-    outputContainer.innerHTML = `<img src="${creature.generatedImage}" alt="${creature.name}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />`;
-  } else {
-    outputContainer.textContent = "Generating image...";
-    const imageUrl = await generateOutputImage(creature);
-    if (imageUrl) {
-      creature.generatedImage = imageUrl; // cache the generated image
-      outputContainer.innerHTML = `<img src="${imageUrl}" alt="${creature.name}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />`;
-    } else {
-      outputContainer.innerHTML = creature.svg;
-      alert("Failed to generate image.");
+  try {
+    // First check for cached image
+    if (creature.generatedImage) {
+      showGeneratedImage(outputContainer, creature, creature.generatedImage);
       return;
     }
+
+    // If no cached image, generate new one
+    const imageUrl = await generateOutputImage(creature);
+    if (!imageUrl) {
+      throw new Error("Failed to generate image");
+    }
+
+    // Store the image URL in the creature object
+    creature.generatedImage = imageUrl;
+
+    // Update the database entry with the image URL
+    const room = getRoom();
+    if (room) {
+      try {
+        const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
+        if (existing && existing.length > 0) {
+          // Update existing recipe with image URL
+          await room.collection("recipe").update(existing[0].id, {
+            generatedImage: imageUrl
+          });
+        }
+      } catch (error) {
+        console.error("Error updating recipe with image URL:", error);
+      }
+    }
+
+    showGeneratedImage(outputContainer, creature, imageUrl);
+    saveGameData();
+    
+  } catch (error) {
+    console.error("Error handling generated image:", error);
+    outputContainer.innerHTML = `
+      <div style="text-align: center;">
+        ${creature.svg}
+        <p style="color: red; margin-top: 10px;">Image generation failed. Please try again.</p>
+      </div>
+    `;
   }
-  
+}
+
+function showGeneratedImage(container, creature, imageUrl) {
+  container.innerHTML = `
+    <img src="${imageUrl}" alt="${creature.name}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+  `;
+
   // Add buttons for saving and regenerating
-  addImageControls(outputContainer, creature);
+  addImageControls(container, creature);
 }
 
 function addImageControls(container, creature) {
@@ -563,6 +601,49 @@ function addImageControls(container, creature) {
     }
   });
   container.appendChild(regenBtn);
+}
+
+// Update handleSavePreviewImage function
+export async function handleSavePreviewImage(creature, newImageUrl) {
+  // Update local copy
+  creature.generatedImage = newImageUrl;
+  
+  // Update global recipes cache
+  if (globalRecipes[creature.id]) {
+    globalRecipes[creature.id].generatedImage = newImageUrl;
+    globalRecipes[creature.id].lastGeneratedAt = new Date().toISOString();
+  }
+  
+  // Update the database entry
+  const room = getRoom();
+  if (room) {
+    try {
+      const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
+      if (existing && existing.length > 0) {
+        // Update existing recipe with new image URL
+        await room.collection("recipe").update(existing[0].id, {
+          generatedImage: newImageUrl,
+          lastGeneratedAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.error("Error updating recipe with new image URL:", error);
+    }
+
+    // Broadcast the update to other users
+    room.send({
+      type: "updatePreviewImage",
+      creatureId: creature.id,
+      newImageUrl: newImageUrl,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Re-render the catalog with the new image
+  renderGlobalCatalog();
+  
+  // Save to persistent storage
+  saveGameData();
 }
 
 // Expose functions globally for use by render event listeners.

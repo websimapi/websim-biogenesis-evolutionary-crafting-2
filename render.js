@@ -701,18 +701,34 @@ export async function addDiscovery(creature) {
   
   if (isFirstTime) {
     creature.firstTime = true;
+
+    // Ensure generatedImage is a websim-hosted URL if it exists
+    if (creature.generatedImage && !creature.generatedImage.includes('websim.ai')) {
+      try {
+        const response = await fetch(creature.generatedImage);
+        const blob = await response.blob();
+        creature.generatedImage = await websim.upload(blob);
+      } catch (error) {
+        console.error("Error uploading image to websim:", error);
+        creature.generatedImage = null;
+      }
+    }
+    
     globalRecipes[creature.id] = creature;
     
     try {
       const existing = await room.collection("recipe").filter({ id: creature.id }).getList();
       if (!(existing && existing.length > 0)) {
-        await room.collection("recipe").create(creature);
+        await room.collection("recipe").create({
+          ...creature,
+          generatedImage: creature.generatedImage
+        });
       }
     } catch (error) {
       console.error("Error saving global discovery:", error);
     }
   }
-  
+
   // Only add to local pools if discovered by current user and not already present
   if (creature.discovered_by && creature.discovered_by.username === currentUser) {
     // Helper function to check if component exists in array
