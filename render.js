@@ -374,13 +374,15 @@ export function displayCreature(creature) {
 
 // Helper function to generate consistent card content
 function getCreatureCardContent(creature) {
-  const displayImage = creature.generatedImage ? 
-    `<img src="${creature.generatedImage}" alt="${creature.name}" style="max-width: 100%; height: auto;" />` :
-    creature.svg;
+  const displayImageStyle = creature.generatedImage ? 
+    `background-image: url('${creature.generatedImage}'); background-size: contain; background-position: center; background-repeat: no-repeat;` :
+    '';
 
   return `
     <div class="image-container">
-      ${displayImage}
+      ${creature.generatedImage ? 
+        `<div class="generated-image" style="${displayImageStyle}"></div>` : 
+        creature.svg}
       ${creature.firstTime ? '<div class="new-tag">New!</div>' : ''}
     </div>
     <h3>${creature.name}</h3>
@@ -391,9 +393,7 @@ function getCreatureCardContent(creature) {
       <span class="creature-container">${creature.containerType.toUpperCase()}</span>
     </div>
     <div class="recipe-author">
-      <img src="https://images.websim.ai/avatar/${(creature.discovered_by && creature.discovered_by.username) || 'unknown'}" 
-           alt="${(creature.discovered_by && creature.discovered_by.username) || 'unknown'}" 
-           class="avatar" />
+      <div class="avatar" style="background-image: url('https://images.websim.ai/avatar/${(creature.discovered_by && creature.discovered_by.username) || 'unknown'}')"></div>
       <span>Discovered by: ${(creature.discovered_by && creature.discovered_by.username) || 'Unknown'}</span>
     </div>
   `;
@@ -499,14 +499,12 @@ export async function handleUseGeneratedImage(creature) {
 
 // Helper function to show generated image and controls
 function showGeneratedImage(container, creature, imageUrl) {
-  // Verify the image URL is valid
-  if (!imageUrl || typeof imageUrl !== 'string') {
-    throw new Error("Invalid image URL");
-  }
-
+  // Create unique img element for initial generation
+  const uniqueId = `gen-img-${Date.now()}`;
+  
   container.innerHTML = `
     <div style="text-align: center;">
-      <img src="${imageUrl}" alt="${creature.name}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+      <img id="${uniqueId}" src="${imageUrl}" alt="${creature.name}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
       <div style="margin-top: 1rem;">
         <button id="save-preview-btn" class="action-btn success">Save as Preview Image</button>
         <button id="regenerate-btn" class="action-btn warning">Regenerate Image</button>
@@ -517,15 +515,23 @@ function showGeneratedImage(container, creature, imageUrl) {
   // Add event listeners
   const saveBtn = container.querySelector("#save-preview-btn");
   const regenBtn = container.querySelector("#regenerate-btn");
+  const genImg = document.getElementById(uniqueId);
 
   if (saveBtn) {
     saveBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       try {
-        await handleSavePreviewImage(creature, imageUrl);
-        alert("Preview image saved globally!");
-        const overlay = document.getElementById("new-output-overlay");
-        if (overlay) overlay.style.display = "none";
+        // Upload the generated image to storage
+        const imgSrc = genImg.src;
+        if (imgSrc && imgSrc !== imageUrl) {
+          const response = await fetch(imgSrc);
+          const blob = await response.blob();
+          const uploadedUrl = await websim.upload(blob);
+          await handleSavePreviewImage(creature, uploadedUrl);
+          alert("Preview image saved globally!");
+          const overlay = document.getElementById("new-output-overlay");
+          if (overlay) overlay.style.display = "none";
+        }
       } catch (error) {
         console.error("Error saving preview:", error);
         alert("Failed to save preview image. Please try again.");
